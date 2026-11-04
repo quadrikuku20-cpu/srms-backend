@@ -18,11 +18,13 @@ const reservationSchema = new mongoose.Schema(
 );
 
 // Prevent double-booking the same table on the same date and time.
+// Cancelled reservations are left out of the index, so their table can be booked again.
+// (MongoDB partial indexes can't use $ne, so the active statuses are listed with $in.)
 reservationSchema.index(
   { date: 1, time: 1, tableNumber: 1 },
   {
     unique: true,
-    partialFilterExpression: { status: { $ne: "cancelled" } },
+    partialFilterExpression: { status: { $in: ["pending", "confirmed"] } },
   }
 );
 

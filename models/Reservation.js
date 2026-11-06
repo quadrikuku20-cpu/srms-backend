@@ -6,6 +6,11 @@ const reservationSchema = new mongoose.Schema(
     date: { type: String, required: true }, // YYYY-MM-DD
     time: { type: String, required: true }, // HH:mm (24h)
     partySize: { type: Number, required: true, min: 1, max: 20 },
+    reservationType: {
+      type: String,
+      enum: ["dining", "birthday", "anniversary", "business", "other"],
+      default: "dining",
+    },
     tableNumber: { type: Number, required: true, min: 1 },
     status: {
       type: String,

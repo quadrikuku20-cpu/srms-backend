@@ -12,6 +12,10 @@ const reservationValidators = [
   body("date").matches(/^\d{4}-\d{2}-\d{2}$/).withMessage("Date must be YYYY-MM-DD"),
   body("time").matches(/^([01]\d|2[0-3]):[0-5]\d$/).withMessage("Time must be HH:mm (24h)"),
   body("partySize").isInt({ min: 1, max: 20 }),
+  body("reservationType")
+    .optional()
+    .isIn(["dining", "birthday", "anniversary", "business", "other"])
+    .withMessage("Invalid reservation type"),
   body("tableNumber").optional().isInt({ min: 1, max: TOTAL_TABLES }),
 ];
 
@@ -37,7 +41,7 @@ router.post(
   reservationValidators,
   validate,
   asyncHandler(async (req, res) => {
-    const { date, time, partySize, specialRequests } = req.body;
+    const { date, time, partySize, reservationType, specialRequests } = req.body;
     assertBookingIsSensible(date, time);
 
     // Auto-assign the first free table for that slot if none was requested
@@ -57,6 +61,7 @@ router.post(
         date,
         time,
         partySize,
+        reservationType,
         tableNumber,
         specialRequests,
       });
@@ -95,10 +100,11 @@ router.put(
       return res.status(403).json({ message: "You can only update your own reservation" });
     }
 
-    const { date, time, partySize, tableNumber, specialRequests } = req.body;
+    const { date, time, partySize, reservationType, tableNumber, specialRequests } = req.body;
     if (date) reservation.date = date;
     if (time) reservation.time = time;
     if (partySize) reservation.partySize = partySize;
+    if (reservationType) reservation.reservationType = reservationType;
     if (tableNumber) reservation.tableNumber = tableNumber;
     if (specialRequests !== undefined) reservation.specialRequests = specialRequests;
 

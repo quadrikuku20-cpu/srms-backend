@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { body } from "express-validator";
 import Event from "../models/Event.js";
+import MenuItem from "../models/MenuItem.js";
 import { protect, requireRole } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
@@ -11,8 +12,22 @@ const eventValidators = [
   body("eventType").isIn(["birthday", "corporate", "anniversary", "other"]),
   body("date").matches(/^\d{4}-\d{2}-\d{2}$/),
   body("time").matches(/^([01]\d|2[0-3]):[0-5]\d$/),
-  body("guestCount").isInt({ min: 1 }),
+  body("guestCount").isInt({ min: 1, max: 100 }).withMessage("Guest count must be between 1 and 100"),
+  body("menuSelection").optional().isArray().withMessage("menuSelection must be a list"),
+  body("menuSelection.*").isMongoId().withMessage("Each menu selection must be a valid menu item id"),
 ];
+
+// Events must be in the future (Calgary time) and start within opening hours (11:00-22:00).
+function assertEventIsSensible(date, time) {
+  const nowCalgary = new Date().toLocaleString("sv-SE", { timeZone: "America/Edmonton" }).slice(0, 16);
+  if (`${date} ${time}` <= nowCalgary) {
+    throw Object.assign(new Error("Event must be in the future"), { statusCode: 400 });
+  }
+  const hour = Number(time.split(":")[0]);
+  if (hour < 11 || hour >= 22) {
+    throw Object.assign(new Error("Events can only start between 11:00 and 22:00"), { statusCode: 400 });
+  }
+}
 
 // POST /api/events
 router.post(
@@ -22,6 +37,17 @@ router.post(
   validate,
   asyncHandler(async (req, res) => {
     const { eventType, date, time, guestCount, menuSelection, additionalRequirements } = req.body;
+
+    assertEventIsSensible(date, time);
+
+    // Every selected dish must exist in the menu (duplicates are ignored)
+    if (menuSelection?.length) {
+      const uniqueIds = [...new Set(menuSelection)];
+      const found = await MenuItem.countDocuments({ _id: { $in: uniqueIds } });
+      if (found !== uniqueIds.length) {
+        return res.status(400).json({ message: "One or more selected menu items do not exist" });
+      }
+    }
     const event = await Event.create({
       customer: req.user.id,
       eventType,

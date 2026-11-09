@@ -63,6 +63,9 @@ router.delete(
   protect,
   requireRole("admin"),
   asyncHandler(async (req, res) => {
+    if (req.params.id === req.user.id) {
+      return res.status(400).json({ message: "You cannot delete your own account" });
+    }
     const user = await User.findByIdAndDelete(req.params.id);
     if (!user) return res.status(404).json({ message: "User not found" });
     res.json({ message: "User deleted" });

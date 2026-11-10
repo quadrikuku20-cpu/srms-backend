@@ -16,14 +16,16 @@ router.post(
   validate,
   asyncHandler(async (req, res) => {
     let lastOrderSummary = null;
+    let loggedIn = false;
 
     // If a valid token was sent, look up their real last order; otherwise answer generically.
     const authHeader = req.headers.authorization || "";
-    if (authHeader.startsWith("Bearer ") && req.user === undefined) {
+    if (authHeader.startsWith("Bearer ")) {
       // lightweight optional-auth: try to decode without failing the whole request
       try {
         const jwt = (await import("jsonwebtoken")).default;
         const decoded = jwt.verify(authHeader.split(" ")[1], process.env.JWT_SECRET);
+        loggedIn = true;
         const lastOrder = await Order.findOne({ customer: decoded.id }).sort({ createdAt: -1 });
         if (lastOrder) {
           lastOrderSummary = lastOrder.items.map((i) => i.name).join(" and ");
@@ -33,7 +35,7 @@ router.post(
       }
     }
 
-    const response = matchChatbotResponse(req.body.message, { lastOrderSummary });
+    const response = matchChatbotResponse(req.body.message, { lastOrderSummary, loggedIn });
     res.json({ response });
   })
 );

@@ -57,7 +57,7 @@ function hasKeyword(text, keyword) {
 // Small bag-of-words matcher: scores each dataset entry by how many of its keywords appear
 // in the customer's message and returns the best match. This "simulates" an AI without
 // calling a real model.
-export function matchChatbotResponse(message, { lastOrderSummary } = {}) {
+export function matchChatbotResponse(message, { lastOrderSummary, loggedIn } = {}) {
   const normalized = message.toLowerCase();
 
   let bestEntry = null;
@@ -79,6 +79,11 @@ export function matchChatbotResponse(message, { lastOrderSummary } = {}) {
   }
 
   // Personalize the "last order" answer with the customer's real history if available
+  if (bestEntry.keywords.includes("history") && !lastOrderSummary) {
+    return loggedIn
+      ? "You haven't placed any orders yet. Browse the menu to place your first one!"
+      : "Please log in and I can look up your previous order.";
+  }
   if (bestEntry.keywords.includes("history") && lastOrderSummary) {
     return `Your previous order was ${lastOrderSummary}.`;
   }

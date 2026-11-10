@@ -25,7 +25,8 @@ function assertBookingIsSensible(date, time) {
   if (Number.isNaN(when.getTime())) {
     throw Object.assign(new Error("Invalid date/time"), { statusCode: 400 });
   }
-  if (when.getTime() < Date.now()) {
+  const nowCalgary = new Date().toLocaleString("sv-SE", { timeZone: "America/Edmonton" }).slice(0, 16);
+  if (`${date} ${time}` < nowCalgary) {
     throw Object.assign(new Error("Reservation must be in the future"), { statusCode: 400 });
   }
   const hour = Number(time.split(":")[0]);

@@ -33,3 +33,16 @@ export function requireRole(...roles) {
     next();
   };
 }
+// Like protect, but never rejects: attaches req.user only when a valid token is sent.
+export async function optionalAuth(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization || "";
+    if (authHeader.startsWith("Bearer ")) {
+      const decoded = jwt.verify(authHeader.split(" ")[1], process.env.JWT_SECRET);
+      req.user = (await User.findById(decoded.id)) || undefined;
+    }
+  } catch {
+    // invalid or expired token - treat the visitor as a guest
+  }
+  next();
+}

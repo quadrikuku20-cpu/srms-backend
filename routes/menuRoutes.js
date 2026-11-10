@@ -1,11 +1,12 @@
 import { Router } from "express";
 import { body, query } from "express-validator";
 import MenuItem from "../models/MenuItem.js";
-import { protect, requireRole } from "../middleware/auth.js";
+import { protect, requireRole, optionalAuth } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
 
 const router = Router();
+router.use(optionalAuth);
 
 // GET /api/menu?category=main&dietary=vegan&search=pasta&maxPrice=20
 // Public - customers browse without logging in.
@@ -26,7 +27,8 @@ router.get(
     if (search) filter.$text = { $search: search };
 
     // Admins can see unavailable items too (for management); customers only see available ones
-    if (!req.query.includeUnavailable) filter.isAvailable = true;
+    const wantsAll = req.query.includeUnavailable === "true" && req.user?.role === "admin";
+    if (!wantsAll) filter.isAvailable = true;
 
     const items = await MenuItem.find(filter).sort({ category: 1, name: 1 });
     res.json(items);

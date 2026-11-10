@@ -12,6 +12,7 @@ import orderRoutes from "./routes/orderRoutes.js";
 import reservationRoutes from "./routes/reservationRoutes.js";
 import eventRoutes from "./routes/eventRoutes.js";
 import chatbotRoutes from "./routes/chatbotRoutes.js";
+import statsRoutes from "./routes/statsRoutes.js";
 
 dotenv.config();
 
@@ -32,6 +33,7 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/reservations", reservationRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/chatbot", chatbotRoutes);
+app.use("/api/stats", statsRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

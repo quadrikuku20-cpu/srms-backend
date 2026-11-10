@@ -102,6 +102,10 @@ router.put(
     }
 
     const { date, time, partySize, reservationType, tableNumber, specialRequests } = req.body;
+    if (reservation.status === "cancelled") {
+      return res.status(400).json({ message: "A cancelled reservation cannot be edited" });
+    }
+    const slotChanged = (date && date !== reservation.date) || (time && time !== reservation.time);
     if (date) reservation.date = date;
     if (time) reservation.time = time;
     if (partySize) reservation.partySize = partySize;
@@ -110,6 +114,20 @@ router.put(
     if (specialRequests !== undefined) reservation.specialRequests = specialRequests;
 
     assertBookingIsSensible(reservation.date, reservation.time);
+
+    // If the slot moved and no table was requested, find a free table for the new slot
+    if (slotChanged && !tableNumber) {
+      const booked = await Reservation.find({
+        _id: { $ne: reservation._id },
+        date: reservation.date,
+        time: reservation.time,
+        status: { $ne: "cancelled" },
+      }).select("tableNumber");
+      const bookedSet = new Set(booked.map((r) => r.tableNumber));
+      const free = Array.from({ length: TOTAL_TABLES }, (_, i) => i + 1).find((n) => !bookedSet.has(n));
+      if (!free) return res.status(409).json({ message: "No tables available for that date and time" });
+      reservation.tableNumber = free;
+    }
 
     try {
       await reservation.save();

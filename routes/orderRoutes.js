@@ -114,6 +114,9 @@ router.put(
     if (["delivered", "cancelled"].includes(order.status)) {
       return res.status(400).json({ message: `Order already ${order.status}, cannot cancel` });
     }
+    if (req.user.role !== "admin" && order.status !== "pending") {
+      return res.status(400).json({ message: "Only pending orders can be cancelled. Please contact the restaurant." });
+    }
     order.status = "cancelled";
     await order.save();
     res.json(order);

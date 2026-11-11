@@ -149,6 +149,10 @@ router.put(
   [body("status").isIn(["pending", "confirmed", "cancelled"])],
   validate,
   asyncHandler(async (req, res) => {
+    const existing = await Reservation.findById(req.params.id);
+    if (existing?.status === "cancelled" && req.body.status !== "cancelled") {
+      return res.status(400).json({ message: "A cancelled reservation cannot be reactivated. Ask the customer to book again." });
+    }
     const reservation = await Reservation.findByIdAndUpdate(
       req.params.id,
       { status: req.body.status },

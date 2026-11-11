@@ -19,6 +19,7 @@ A REST API built with **Node.js, Express and MongoDB (Mongoose)**. It handles us
 - `bcryptjs` for password hashing
 - `express-validator` for input validation
 - `cors`, `morgan` (request logging), `dotenv`
+- `helmet` (security headers) and `express-rate-limit` (limits repeated failed logins)
 
 ## Run it locally
 
@@ -45,6 +46,7 @@ Notes on the values:
 
 - `MONGO_URI` must include the database name (`/srms`) before the `?`. If your password contains symbols such as `#`, `@`, `/` or `:`, either choose a letters-and-numbers password or URL-encode it.
 - In Atlas, Network Access must allow your IP address (or `0.0.0.0/0` while developing).
+- `JWT_SECRET` should be a long random string, for example generated with the Node crypto module (`randomBytes(48)`). Never commit your `.env` file.
 - `CLIENT_ORIGIN` is the only website allowed to call the API (CORS). It must match the frontend's address exactly, with no trailing slash.
 
 Fill the database with demo data, then start the server:
@@ -95,20 +97,31 @@ All routes start with `/api`. Protected routes expect the header `Authorization:
 | | `DELETE /events/:id` | Owner or admin |
 | | `PUT /events/:id/status` | Admin |
 | Chatbot | `POST /chatbot` | Anyone (personalised if a token is sent) |
+| Stats | `GET /stats` | Admin (revenue, orders per day, top dishes, counts) |
 
-`GET /menu` accepts the query parameters `category`, `dietary`, `search`, `maxPrice` and `includeUnavailable`.
+`GET /menu` accepts the query parameters `category`, `dietary`, `search`, `maxPrice` and `includeUnavailable` (only admins see unavailable dishes, even if the parameter is sent).
+
+Request details worth knowing:
+
+- `POST /reservations` takes `date`, `time`, `partySize`, an optional `reservationType` (`dining`, `birthday`, `anniversary`, `business` or `other`) and optional `specialRequests`.
+- `POST /events` takes `eventType`, `date`, `time`, `guestCount` (1 to 100), an optional `menuSelection` (a list of menu item ids, each checked against the menu) and optional `additionalRequirements`.
+- `PUT /users/:id` updates `name` and `preferences` (`favoriteCategory` and `dietaryRestrictions`), which are validated.
 
 ## How the main features work
 
 **Authentication and roles.** Passwords are hashed with bcrypt before they are saved. Login returns a JWT. The `protect` middleware checks the token on every protected route, and `requireRole("admin")` restricts admin-only routes. Customers can only see and change their own orders, reservations and events.
 
-**Order pricing.** The browser only sends dish IDs and quantities. The server looks up the current prices in the database and calculates the total itself, so prices cannot be tampered with from the client. Each order stores a snapshot of the dish name and price at the time it was placed.
+**Order pricing.** The browser only sends dish IDs and quantities. The server looks up the current prices in the database and calculates the total itself, so prices cannot be tampered with from the client. Each order stores a snapshot of the dish name and price at the time it was placed. Customers can cancel an order only while it is pending; admins can cancel any order that has not been delivered.
 
-**Reservations and double-booking.** Reservations are checked against the opening hours (11:00 to 22:00) and must be in the future. If no table is requested, the server assigns the first free one out of 15. A unique database index on date, time and table number (ignoring cancelled reservations) prevents two active bookings for the same table at the same time, even if two requests arrive together.
+**Reservations and double-booking.** Reservations are checked against the opening hours (11:00 to 22:00) and must be in the future (compared in Calgary time). Each reservation has a type. Customers can edit a reservation; if the date or time changes, the server finds a free table for the new slot, and cancelled reservations cannot be edited. If no table is requested, the server assigns the first free one out of 15. A unique database index on date, time and table number (ignoring cancelled reservations) prevents two active bookings for the same table at the same time, even if two requests arrive together.
 
 **Validation and errors.** Every write route validates its input with `express-validator`. A shared error handler turns Mongoose validation errors, duplicate-key errors and bad IDs into clean JSON responses with the right status codes.
 
-**Simulated AI assistant.** `POST /chatbot` matches the customer's message against a keyword dataset in `data/chatbotResponses.js` and returns the best answer (specials, vegetarian options, recommendations, opening hours and so on). If the request includes a valid login token, it can answer "what did I order last time" from the customer's real order history.
+**Special events.** Event requests are validated: the date must be in the future (Calgary time), the start time must fall within opening hours, the guest count is limited, and every selected menu item must exist.
+
+**Admin analytics.** `GET /stats` (admin only) uses MongoDB aggregation to return revenue, order counts, average order value, orders per day for the last 7 days, and the top 5 dishes. Cancelled orders are excluded.
+
+**Simulated AI assistant.** `POST /chatbot` matches the customer's message against a keyword dataset in `data/chatbotResponses.js` and returns the best answer (specials, vegetarian options, recommendations, opening hours and so on). If the request includes a valid login token, it can answer "what did I order last time" from the customer's real order history. Guests are asked to log in, and customers with no orders yet are told so.
 
 ## Project structure
 
@@ -123,6 +136,15 @@ srms-backend/
   server.js                 app entry point
   .env.example              template for the environment variables
 ```
+
+## Security notes
+
+- Passwords are hashed with bcrypt and never returned by the API.
+- `helmet` sets standard security headers and hides the `X-Powered-By` header.
+- Login and register are rate limited: 15 failed attempts per 15 minutes per IP address (successful logins are not counted).
+- Role checks run on the server for every admin route, and customers can only access their own data.
+- An admin cannot delete their own account.
+- Secrets live in `.env`, which is listed in `.gitignore`; `.env.example` contains only placeholders.
 
 ## Deployment
 

@@ -36,7 +36,19 @@ router.get(
 router.put(
   "/:id",
   protect,
-  [body("name").optional().trim().notEmpty()],
+  [
+    body("name").optional().trim().notEmpty(),
+    body("preferences").optional().isObject().withMessage("preferences must be an object"),
+    body("preferences.favoriteCategory")
+      .optional({ nullable: true })
+      .isIn(["starter", "main", "dessert", "beverage"])
+      .withMessage("Invalid favorite category"),
+    body("preferences.dietaryRestrictions")
+      .optional()
+      .isArray({ max: 10 })
+      .withMessage("dietaryRestrictions must be a list of up to 10 items"),
+    body("preferences.dietaryRestrictions.*").isString().trim().isLength({ min: 1, max: 40 }),
+  ],
   validate,
   asyncHandler(async (req, res) => {
     if (req.user.role !== "admin" && req.user.id !== req.params.id) {

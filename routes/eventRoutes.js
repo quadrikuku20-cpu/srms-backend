@@ -77,6 +77,51 @@ router.get(
   })
 );
 
+// PUT /api/events/:id - the owner (or an admin) edits an event request that is still pending
+router.put(
+  "/:id",
+  protect,
+  [
+    body("eventType").optional().isIn(["birthday", "corporate", "anniversary", "other"]),
+    body("date").optional().matches(/^\d{4}-\d{2}-\d{2}$/),
+    body("time").optional().matches(/^([01]\d|2[0-3]):[0-5]\d$/),
+    body("guestCount").optional().isInt({ min: 1, max: 100 }).withMessage("Guest count must be between 1 and 100"),
+    body("menuSelection").optional().isArray().withMessage("menuSelection must be a list"),
+    body("menuSelection.*").isMongoId().withMessage("Each menu selection must be a valid menu item id"),
+  ],
+  validate,
+  asyncHandler(async (req, res) => {
+    const event = await Event.findById(req.params.id);
+    if (!event) return res.status(404).json({ message: "Event not found" });
+    if (req.user.role !== "admin" && String(event.customer) !== req.user.id) {
+      return res.status(403).json({ message: "You can only edit your own event" });
+    }
+    if (event.status !== "pending") {
+      return res.status(400).json({ message: `Only pending event requests can be edited (this one is ${event.status}).` });
+    }
+
+    const { eventType, date, time, guestCount, menuSelection, additionalRequirements } = req.body;
+    assertEventIsSensible(date ?? event.date, time ?? event.time);
+
+    if (menuSelection) {
+      const uniqueIds = [...new Set(menuSelection)];
+      const found = await MenuItem.countDocuments({ _id: { $in: uniqueIds } });
+      if (found !== uniqueIds.length) {
+        return res.status(400).json({ message: "One or more selected menu items do not exist" });
+      }
+      event.menuSelection = uniqueIds;
+    }
+    if (eventType) event.eventType = eventType;
+    if (date) event.date = date;
+    if (time) event.time = time;
+    if (guestCount) event.guestCount = guestCount;
+    if (additionalRequirements !== undefined) event.additionalRequirements = additionalRequirements;
+
+    await event.save();
+    await event.populate("menuSelection", "name price");
+    res.json(event);
+  })
+);
 // PUT /api/events/:id/status - admin approves/cancels
 router.put(
   "/:id/status",

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { body } from "express-validator";
 import Reservation from "../models/Reservation.js";
+import { assertRealDateTime } from "../utils/dateTime.js";
 import { protect, requireRole } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
@@ -21,6 +22,7 @@ const reservationValidators = [
 
 // Reject bookings for dates/times in the past, and outside opening hours (11:00-22:00)
 function assertBookingIsSensible(date, time) {
+  assertRealDateTime(date, time);
   const when = new Date(`${date}T${time}:00`);
   if (Number.isNaN(when.getTime())) {
     throw Object.assign(new Error("Invalid date/time"), { statusCode: 400 });

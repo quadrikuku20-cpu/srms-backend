@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { body } from "express-validator";
 import Event from "../models/Event.js";
+import { assertRealDateTime } from "../utils/dateTime.js";
 import MenuItem from "../models/MenuItem.js";
 import { protect, requireRole } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
@@ -19,6 +20,7 @@ const eventValidators = [
 
 // Events must be in the future (Calgary time) and start within opening hours (11:00-22:00).
 function assertEventIsSensible(date, time) {
+  assertRealDateTime(date, time);
   const nowCalgary = new Date().toLocaleString("sv-SE", { timeZone: "America/Edmonton" }).slice(0, 16);
   if (`${date} ${time}` <= nowCalgary) {
     throw Object.assign(new Error("Event must be in the future"), { statusCode: 400 });
